@@ -125,6 +125,8 @@ def parse(url):
     # Single location may be set not as a list
     if len(config['LOCATION']) == 1 and isinstance(config['LOCATION'], list):
         config['LOCATION'] = config['LOCATION'][0]
+
+    # Memcache likes it in one line.
     elif url.scheme in ('memcached', 'pymemcached', 'djangopylibmc'):
         config['LOCATION'] = ';'.join(config['LOCATION'])
 
