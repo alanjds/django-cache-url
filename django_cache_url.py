@@ -52,6 +52,7 @@ def parse(url):
     """Parses a cache URL."""
     config = {}
 
+    original_url = url
     url = urlparse.urlparse(url)
     # Handle python 2.6 broken url parsing
     path, query = url.path, url.query
@@ -72,32 +73,60 @@ def parse(url):
     if url.scheme == 'hiredis':
         redis_options['PARSER_CLASS'] = 'redis.connection.HiredisParser'
 
-    # File based
-    if not url.netloc:
-        if url.scheme in ('memcached', 'pymemcached', 'djangopylibmc'):
-            config['LOCATION'] = 'unix:' + path
+    # Handle multiple locations (hosts or sockets)
+    config['LOCATION'] = []
 
-        elif url.scheme in ('redis', 'hiredis'):
-            match = re.match(r'.+?(?P<db>\d+)', path)
-            if match:
-                db = match.group('db')
-                path = path[:path.rfind('/')]
+    raw_locations = original_url.split(',')
+
+    if url.scheme:
+        for i, raw_location in enumerate(raw_locations):
+            if not raw_location.startswith(url.scheme):
+                raw_locations[i] = url.scheme + '://' + raw_location
+
+    for raw_location in raw_locations:
+        location_url = urlparse.urlparse(raw_location)
+
+        # Handle python 2.6 broken url parsing
+        path, query = location_url.path, location_url.query
+        if '?' in path and query == '':
+            path, query = path.split('?', 1)
+
+        # File based
+        if not location_url.netloc:
+            if location_url.scheme in ('memcached', 'pymemcached', 'djangopylibmc'):
+                config['LOCATION'].append('unix:' + path)
+
+            elif location_url.scheme in ('redis', 'hiredis'):
+                match = re.match(r'.+?(?P<db>\d+)', path)
+                if match:
+                    db = match.group('db')
+                    path = path[:path.rfind('/')]
+                else:
+                    db = '0'
+                config['LOCATION'].append('unix:%s:%s' % (path, db))
             else:
-                db = '0'
-            config['LOCATION'] = 'unix:%s:%s' % (path, db)
-        else:
-            config['LOCATION'] = path
-    # URL based
-    else:
-        # Handle multiple hosts
-        config['LOCATION'] = ';'.join(url.netloc.split(','))
+                config['LOCATION'].append(path)
 
-        if url.scheme in ('redis', 'hiredis'):
-            if url.password:
-                redis_options['PASSWORD'] = url.password
-            # Specifying the database is optional, use db 0 if not specified.
-            db = path[1:] or '0'
-            config['LOCATION'] = "redis://%s:%s/%s" % (url.hostname, url.port, db)
+        # URL based
+        else:
+            config['LOCATION'].extend(location_url.netloc.split(','))
+
+            if location_url.scheme in ('redis', 'hiredis'):
+                if location_url.password:
+                    redis_options['PASSWORD'] = location_url.password
+                # Specifying the database is optional, use db 0 if not specified.
+                db = path[1:] or '0'
+                config['LOCATION'][-1] = "redis://%s:%s/%s" % (
+                    location_url.hostname,
+                    location_url.port,
+                    db
+                )
+
+    # Single location may be set not as a list
+    if len(config['LOCATION']) == 1 and isinstance(config['LOCATION'], list):
+        config['LOCATION'] = config['LOCATION'][0]
+    elif url.scheme in ('memcached', 'pymemcached', 'djangopylibmc'):
+        config['LOCATION'] = ';'.join(config['LOCATION'])
 
     if redis_options:
         config.setdefault('OPTIONS', {}).update(redis_options)
