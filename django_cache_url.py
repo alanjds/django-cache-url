@@ -103,7 +103,15 @@ def parse(url):
                     path = path[:path.rfind('/')]
                 else:
                     db = '0'
-                config['LOCATION'].append('unix:%s:%s' % (path, db))
+
+                unix_db_separator = ':'
+                try:
+                    import django_redis
+                    if django_redis.VERSION >= (3, 8):
+                        unix_db_separator = '?db='
+                except (ImportError, AttributeError):
+                    pass
+                config['LOCATION'].append('unix:%s%s%s' % (path, unix_db_separator, db))
             else:
                 config['LOCATION'].append(path)
 
