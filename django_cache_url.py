@@ -112,6 +112,13 @@ def parse(url):
         val = cache_args.pop(key, None)
         if val is not None:
             options[key] = int(val)
+
+    for key in cache_args.keys():
+        pre, marker, post = key.partition('OPTIONS__')
+        if marker and post and not pre:
+            val = cache_args.pop(key, None)
+            options[post] = val
+
     if options:
         config.setdefault('OPTIONS', {}).update(options)
 
