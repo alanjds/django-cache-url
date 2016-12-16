@@ -120,6 +120,12 @@ def parse(url):
             options[post] = val
 
     if options:
+        for k,v in options.items():
+            v = True if v in ['true', 'True'] else v
+            v = False if v in ['false', 'False'] else v
+            v = None if v in ['none', 'None'] else v
+            options[k] = v
+
         config.setdefault('OPTIONS', {}).update(options)
 
     config.update(cache_args)
