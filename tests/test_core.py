@@ -54,6 +54,24 @@ def test_query_string_params_are_converted_to_cache_options():
     assert config['OPTIONS']['CULL_FREQUENCY'] == 2
 
 
+def test_query_string_params_started_with_options_are_converted_options():
+    url = 'db://my_cache_table?options__foo=bar'
+    config = django_cache_url.parse(url)
+
+    assert 'OPTIONS' in config
+    assert config['OPTIONS']['FOO'] == 'bar'
+
+
+def test_query_string_options_truefalsenone_are_converted_to_python():
+    url = 'db://my_cache_table?options__foo=True&options__bar=false&options__baz=none'
+    config = django_cache_url.parse(url)
+
+    assert 'OPTIONS' in config
+    assert config['OPTIONS']['FOO'] == True
+    assert config['OPTIONS']['BAR'] == False
+    assert config['OPTIONS']['BAZ'] == None
+
+
 def test_unknown_cache_backend():
     with pytest.raises(Exception):
         django_cache_url.parse('donkey://127.0.0.1/foo')
